@@ -94,10 +94,7 @@ int main( int argc, const char **argv )
 		return 1;
 	}
 	if( cert_file.empty() )
-	{
-		printf( "Missing signing certificate\n" );
-		return 1;
-	}
+		printf( " *** Package will not be signed ***\n" );
 	if( files.empty() )
 	{
 		printf( "Missing package image files\n" );
@@ -107,18 +104,23 @@ int main( int argc, const char **argv )
 	OpenSSL_add_all_algorithms();
 
 	// Load signing certificate
-	FILE *fp = fopen( cert_file.c_str(), "r" );
-	if( 0 == fp )
+	X509 *cert = 0;
+	RSA *key = 0;
+	if( !cert_file.empty() )
 	{
-		printf( "Failed to open signing cert: %s\n", cert_file.c_str() );
-		return 1;
-	}
-	X509 *cert = PEM_read_X509( fp, 0, 0, 0 );
-	RSA *key = PEM_read_RSAPrivateKey( fp, 0, password_cb, &key_pass );
-	if( 0 == cert || 0 == key )
-	{
-		printf( "Failed to read sining cert\n" );
-		return false;
+		FILE *fp = fopen( cert_file.c_str(), "r" );
+		if( 0 == fp )
+		{
+			printf( "Failed to open signing cert: %s\n", cert_file.c_str() );
+			return 1;
+		}
+		cert = PEM_read_X509( fp, 0, 0, 0 );
+		key = PEM_read_RSAPrivateKey( fp, 0, password_cb, &key_pass );
+		if( 0 == cert || 0 == key )
+		{
+			printf( "Failed to read signing cert\n" );
+			return false;
+		}
 	}
 
 	// Open the output file for writing
@@ -187,19 +189,22 @@ int main( int argc, const char **argv )
 	printf( "done\n" );
 
 	// Write signing certificate
-	printf( "Writing signing certificate ... " );
-	unsigned char cert_buffer[ 2048 ];
-	unsigned char *p = cert_buffer;
-	int len = i2d_X509( cert, &p );
-	if( -1 == write( fd, cert_buffer, len ))
+	if( cert )
 	{
-		printf( "write() failed: (%i) %m\n", errno );
-		unlink( pkg_file.c_str() );
-		return 1;
+		printf( "Writing signing certificate ... " );
+		unsigned char cert_buffer[ 2048 ];
+		unsigned char *p = cert_buffer;
+		int len = i2d_X509( cert, &p );
+		if( -1 == write( fd, cert_buffer, len ))
+		{
+			printf( "write() failed: (%i) %m\n", errno );
+			unlink( pkg_file.c_str() );
+			return 1;
+		}
+		SHA256_Update( &sha256, cert_buffer, len );
+		X509_free( cert );
+		printf( "done\n" );
 	}
-	SHA256_Update( &sha256, cert_buffer, len );
-	X509_free( cert );
-	printf( "done\n" );
 
 	// Add the footer
 	printf( "Writing footer ... " );
@@ -213,14 +218,17 @@ int main( int argc, const char **argv )
 	SHA256_Final( hash, &sha256 );
 
 	// Sign
-	unsigned int sig_size = 0;
-	int ret = RSA_sign( NID_sha1, hash, sizeof( hash ), footer.sig, &sig_size, key );
-	RSA_free( key );
-	if( 0 == ret )
+	if( key )
 	{
-		printf( "RSA_sign() failed\n" );
-		unlink( pkg_file.c_str() );
-		return 1;
+		unsigned int sig_size = 0;
+		int ret = RSA_sign( NID_sha1, hash, sizeof( hash ), footer.sig, &sig_size, key );
+		RSA_free( key );
+		if( 0 == ret )
+		{
+			printf( "RSA_sign() failed\n" );
+			unlink( pkg_file.c_str() );
+			return 1;
+		}
 	}
 
 	footer.crc = ntohl( crc32( &footer, sizeof( footer ) - 4 ) );
