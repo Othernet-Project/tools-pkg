@@ -1,0 +1,86 @@
+# pkgtool
+
+pkgtool a image construction tool and firmware installer used in the Outernet's
+Lighthouse firmware. This package consists of three parts:
+
+* pkgtool: firmware verification tool
+* mkpkg: firmware packager
+* installer: firmware installation tool
+
+## Build notes
+
+When building the pkgtool suite, please keep in mind that pkgtool and installer
+are compiled for the target arch (e.g., ARM), while the mkpkg is compiled for
+the host arch (the machine on which the firmware package is created).
+Furthermore, the installer binary is build so that it is later linked into
+mkpkg so that mkpkg tool can create a package file that includes it.
+
+## Firmware package
+
+Firmware package is a binary executable that contains a payload with everything
+it needs to install itself.
+
+The firmware package layout is as follows:
+
+    |------------------|
+    |  installer bin   |
+    |------------------|
+    |     object 0     |
+    |~~~~~~~~~~~~~~~~~~|
+           . . .
+    |~~~~~~~~~~~~~~~~~~|
+    |     object n     |
+    |------------------|
+    |      index       |
+    |------------------|
+    |   certificate    |
+    |------------------|
+    |      footer      |
+    |------------------|
+
+The installer binary is present at the beginning of the package, followed by
+one or more objects which represent files. The file index follows the objects
+and maps objects to file names. Optional signature certificate is added between
+the index and the footer.
+
+The footer is used for verifying the image. It contains information such as the
+offset to the file index, number of objects contained in the package, and so
+on. You can see the exact layout of the footer in `common.h` file.
+
+## Creating a package
+
+To create a package, we use the `mkpkg` command. The `-o` switch is used to
+specify the output file name. Positional arguments are treated as payload
+(objects). 
+
+    mkpkg -o my.pkg path/to/file1 path/to/file2
+
+Each file that should be part of the payload can be renamed in the
+package file by appending a colon followed by desired name:
+
+    mkpkg -o my.pkg path/to/file1:foo1 path/to/file2
+
+A file named `run.sh` must be present in the firmware package. This file
+controls the firmware installation and can have arbitrary contents. The
+installer binary executes this file when the package is unpacked. A typical
+firmware package may be generated like so:
+
+    mkpkg -o my.pkg path/to/upgrade.sh:run.sh path/to/kernel.img \
+        path/to/rootfs.img
+
+The `upgrade.sh` may contain code that 'flashes' the firmware or otherwise
+installs the new kernele and rootfs images.
+
+## Signed and unsigned packages
+
+The firmware packages can be signed and unsigned. Signed packages contain a
+certificate which `pkgtool` uses to verify that firmware comes from a known
+source. If no certificate is passed to `mkpkg`, the resulting firmware package
+is unsigned.
+
+To create a signed package, you will need a certificate file and it's password.
+
+    mkpkg -k path/to/certificate.pem -p "Certificate password" \
+        -o my.pkg path/to/upgrade.sh:run.sh path/to/kernel.img \
+        path/to/rootfs.img
+
