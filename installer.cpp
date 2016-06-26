@@ -491,7 +491,7 @@ static int lookup_ubivol_id( const char *name, int dev )
 				int len = read( fd, buf, sizeof( buf ) );
 				if ( len > 0 )
 				{
-					if( 0 == strncmp( buf, name, strlen(name) ))
+					if( (strlen(buf) == strlen(name)) && (0 == strncmp( buf, name, strlen(name) )))
 					{
 						vol_id = id;
 						break;
