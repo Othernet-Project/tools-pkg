@@ -550,6 +550,7 @@ int ubi( const char *file, const char *target )
 		return -1;
 	}
 
+
 	log_printf( LOG_INFO, "will write %s to backup volume of ubi volume %s", file, name );
 
 	// Open ubi device
@@ -562,6 +563,13 @@ int ubi( const char *file, const char *target )
 		return -1;
 	}
 
+	// Lookup the volume id of the primary volume
+	int old_vol_id = lookup_ubivol_id( name, dev );
+	if( -1 == old_vol_id ) {
+		log_printf( LOG_ERR, "lookup_ubivol_id( %s ) failed: (%i) %m", s, errno );
+		return -1;
+	}
+
 	// Lookup the volume id of the secondary volume
 	snprintf( s, sizeof( s ), "%s-backup", name );
 	int vol_id = lookup_ubivol_id( s, dev );
@@ -570,7 +578,7 @@ int ubi( const char *file, const char *target )
 		return -1;
 	}
 
-	log_printf( LOG_INFO, "writing %s to ubi volume %s", file, s );
+	log_printf( LOG_INFO, "writing %s to ubi volume %s, vol_id %i", file, s, vol_id );
 
 	// Open volume
 	wpt::fd fd_vol;
@@ -613,8 +621,9 @@ int ubi( const char *file, const char *target )
 	fd_vol.close();
 	fd_self.close();
 
+	log_printf( LOG_INFO, "swapping (updated) ubi volume %s (vol_id: %i) and (original) ubi volume %s (vol_id: %i)",s, vol_id, name, old_vol_id );
+
 	// Swap primary and secondary volumes
-	int old_vol_id = lookup_ubivol_id( name, dev );
 	struct ubi_rnvol_req ren_req;
 	memset( &ren_req, 0, sizeof( ren_req ));
 	ren_req.count = ( old_vol_id != -1 ? 2 : 1 );
