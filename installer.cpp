@@ -550,7 +550,7 @@ int ubi( const char *file, const char *target )
 		return -1;
 	}
 
-	log_printf( LOG_INFO, "writing %s to ubi volume %s", file, name );
+	log_printf( LOG_INFO, "will write %s to backup volume of ubi volume %s", file, name );
 
 	// Open ubi device
 	wpt::fd fd_ubi;
@@ -570,6 +570,7 @@ int ubi( const char *file, const char *target )
 		return -1;
 	}
 
+	log_printf( LOG_INFO, "writing %s to ubi volume %s", file, s );
 
 	// Open volume
 	wpt::fd fd_vol;
@@ -587,6 +588,7 @@ int ubi( const char *file, const char *target )
 		log_printf( LOG_ERR, "ioctl( UBI_IOCVOLUP ) failed: (%i) %m", errno );
 		return -1;
 	}
+
 
 	// Write volume data
 	unsigned int size = entry.size;
