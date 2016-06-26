@@ -563,34 +563,13 @@ int ubi( const char *file, const char *target )
 	}
 
 	// Lookup the volume id of the secondary volume
-	snprintf( s, sizeof( s ), "_%s", name );
+	snprintf( s, sizeof( s ), "%s-backup", name );
 	int vol_id = lookup_ubivol_id( s, dev );
-	if( -1 == vol_id )
-		vol_id = UBI_VOL_NUM_AUTO;
-	else
-	{
-		// Need to delete the old volume as sizes may not match
-		if( -1 == ioctl( fd_ubi, UBI_IOCRMVOL, &vol_id ) )
-		{
-			log_printf( LOG_ERR, "ioctl( UBI_IOCRMVOL ) failed: (%i) %m", errno );
-			return -1;
-		}
-	}
-
-	// Create the new volume
-	struct ubi_mkvol_req vol_req;
-	memset( &vol_req, 0, sizeof( vol_req ) );
-	vol_req.vol_id = vol_id;
-	vol_req.alignment = 1;
-	vol_req.bytes = entry.size;
-	vol_req.vol_type = UBI_STATIC_VOLUME;
-	vol_req.name_len = snprintf( vol_req.name, sizeof( vol_req.name ), "_%s", name );
-	if( -1 == ioctl( fd_ubi, UBI_IOCMKVOL, &vol_req ) )
-	{
-		log_printf( LOG_ERR, "ioctl( UBI_IOCMKVOL ) failed: (%i) %m", errno );
+	if( -1 == vol_id ) {
+		log_printf( LOG_ERR, "lookup_ubivol_id( %s ) failed: (%i) %m", s, errno );
 		return -1;
 	}
-	vol_id = vol_req.vol_id;
+
 
 	// Open volume
 	wpt::fd fd_vol;
@@ -642,7 +621,7 @@ int ubi( const char *file, const char *target )
 	if( -1 != old_vol_id )
 	{
 		ren_req.ents[ 1 ].vol_id = old_vol_id;
-		ren_req.ents[ 1 ].name_len = snprintf( ren_req.ents[ 1 ].name, sizeof( ren_req.ents[ 1 ].name ), "_%s", name );
+		ren_req.ents[ 1 ].name_len = snprintf( ren_req.ents[ 1 ].name, sizeof( ren_req.ents[ 1 ].name ), "%s-backup", name );
 	}
 	if( -1 == ioctl( fd_ubi, UBI_IOCRNVOL, &ren_req ))
 	{
